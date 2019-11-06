@@ -1,0 +1,131 @@
+---
+title: "EDA for health outcomes"
+author: "Mingjie Zhao"
+date: "November 6, 2019"
+output: pdf_document
+---
+
+```{r setup, include=FALSE, warning=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(mapproj)
+library(ggplot2)
+library(knitr)
+library(lubridate)
+library(stringr)
+library(gridExtra)
+```
+
+## Introduction
+The 500 Cities project is a collaboration between CDC, the Robert Wood Johnson Foundation, and the CDC Foundation. The purpose of the 500 Cities Project is to provide city- and census tract-level small area estimates for chronic disease risk factors, health outcomes, and clinical preventive service use for the largest 500 cities in the United States (ref: https://www.cdc.gov/500cities/). 
+
+The data set is relatively big with 810,103 rows and 24 columns. There is a variable called "measure" which indicates different health measures and another column "Data_Value" provides the values of the corresponding measure. Since the data was collected nationwide, I am interested in seeing the hierarchical structure of the data based on the locations. 
+
+
+```{r, include=FALSE}
+q3_data = read.csv("500_Cities__Local_Data_for_Better_Health__2018_release.csv", header=T, sep=",")
+
+colnames(q3_data)
+# data cleaning
+q3_data$StateDesc = as.character(q3_data$StateDesc)
+q3_data[which(q3_data$StateDesc == "North Carolin"),"StateDesc"] ="North Carolina"
+q3_data[which(q3_data$StateDesc == "South Carolin"),"StateDesc"] ="South Carolina"
+
+mental= q3_data[which(q3_data$Measure == "Mental health not good for >=14 days among adults aged >=18 Years"),]
+physical= q3_data[which(q3_data$Measure == "Physical health not good for >=14 days among adults aged >=18 Years"),]
+
+```
+## Plot 1
+First, I looked at two health measures: Mental health not good for >=14 days among adults aged >=18 Years, and Physical health not good for >=14 days among adults aged >=18 Years. I hope to see the average values of these two measures in different states and see which states has the most mental and physical concerns (largest values of the two measures).
+
+From the plot, we can see that the results for mental and physical concerns are pretty similar. I am a bit surprised to see that the states having the biggest health concerns are not the states on east coast or west coast (California people are doing not too bad which is a surprise to me). The main takeaway from this plot is that if we want to model the data in future, we should consider using hierarchical models (which is great since I just learned it this semester!)
+
+Based on the 1st plot I get the top 5 states which have the biggest mental and physical concerns. And they are:
+for physical health concerns: "west virginia" "michigan"      "new jersey"    "ohio"          "mississippi"  
+for mental health concerns:  "ohio"        "michigan"    "mississippi" "arkansas"    "tennessee"
+We do see the overlaps here for Ohio, Michigan, and Mississippi
+```{r, include=FALSE}
+#mental
+q_mr = mental %>%
+  select(StateDesc, Data_Value) %>%
+  group_by(StateDesc) %>%
+  summarise(Average_value = mean(Data_Value, na.rm = T)) %>%
+  arrange(desc(Average_value)) %>%
+  as.data.frame()
+names(q_mr)[1] = "region"
+q_mr$region = tolower(q_mr$region)
+
+states <- map_data("state")
+map.df <- merge(states,q_mr, by="region", all=T)
+map.df <- map.df[order(map.df$order),]
+p1= ggplot(map.df, aes(x=long,y=lat,group=group))+
+  geom_polygon(aes(fill=Average_value))+
+  geom_path()+ 
+  scale_fill_gradientn(colours=rev(heat.colors(5)),na.value="grey90")+
+  coord_map() +
+  ggtitle("mental health concern") + 
+  theme(plot.title = element_text(hjust = 0.5))+
+  theme_void()
+
+#physical
+q_ph = physical %>%
+  select(StateDesc, Data_Value) %>%
+  group_by(StateDesc) %>%
+  summarise(Average_value = mean(Data_Value, na.rm = T)) %>%
+  arrange(desc(Average_value)) %>%
+  as.data.frame()
+names(q_ph)[1] = "region"
+q_ph$region = tolower(q_ph$region)
+
+
+states <- map_data("state")
+map.df <- merge(states,q_ph, by="region", all=T)
+map.df <- map.df[order(map.df$order),]
+p2= ggplot(map.df, aes(x=long,y=lat,group=group))+
+  geom_polygon(aes(fill=Average_value))+
+  geom_path()+ 
+  scale_fill_gradientn(colours=rev(heat.colors(5)),na.value="grey90")+
+  coord_map() +
+  ggtitle("physical health concern") + 
+  theme(plot.title = element_text(hjust = 0.5))+
+  theme_void()
+
+grid.arrange(p1, p2)
+
+physical_5 = q_ph$region[1:5]
+mental_5 = q_mr$region[1:5]
+
+print(physical_5)
+print(mental_5)
+```
+## Plot 2
+For this part, I want to study what may correlated to the health concerns. So I plot the density of mental and physical concerns as well as other measures including Binge drinking, High blood pressure, obesity, smoking, not enough sleeping, etc. And I found the binge drinking may be correlated to the health concerns. Additionally, when we plot the density nationwide we may not see much correlations, but if we only look at these states with the biggest health concerns (top 5 states from last plot), we do see that the correlation could be larger! This again confirms that we need to consider random effects when modeling the data.  
+```{r, include=FALSE}
+physical$StateDesc = as.factor(physical$StateDesc)
+
+
+ph_select = physical[physical$StateDesc %in% c("West Virginia" ,"Michigan" , "New Jersey" , "Ohio" ,  "Mississippi"), ]
+
+mt_select = mental[mental$StateDesc %in% c("Ohio" ,"Michigan" , "Mississippi" ,"Arkansas" , "Tennessee"), ]
+
+tot_select = q3_data[q3_data$StateDesc %in% c("West Virginia" ,"Michigan" , "New Jersey" , "Ohio" ,  "Mississippi","Ohio" ,"Michigan" , "Mississippi" ,"Arkansas" , "Tennessee"), ]
+tot_select = tot_select %>% filter(Measure=="Binge drinking among adults aged >=18 Years" | Measure=="Physical health not good for >=14 days among adults aged >=18 Years" | Measure=="Mental health not good for >=14 days among adults aged >=18 Years")
+tot_select2 = q3_data %>% filter(Measure=="Binge drinking among adults aged >=18 Years" | Measure=="Physical health not good for >=14 days among adults aged >=18 Years" | Measure=="Mental health not good for >=14 days among adults aged >=18 Years")
+
+
+p3=  ggplot(tot_select, aes(Data_Value))+ geom_density(aes(fill=factor(Measure)), alpha=0.8) + 
+    labs(title="Density plot of bindge drinking, mental and physical health", 
+         subtitle="Selected states: West Virginia, Michigan , New Jersey , Ohio, Mississippi, Arkansas, Tennessee",
+         
+         x="Data Value",
+         fill="Measures")
+
+p4 =  ggplot(tot_select2, aes(Data_Value))+ geom_density(aes(fill=factor(Measure)), alpha=0.8) + 
+    labs(title="Density plot of bindge drinking, mental and physical health", 
+         subtitle="Nationwide",
+         
+         x="Data Value",
+         fill="Measures")
+grid.arrange(p3, p4)
+```
+

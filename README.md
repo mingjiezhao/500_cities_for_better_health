@@ -4,3 +4,4 @@ This project is based on the complete dataset for the 500 Cities project 2018 re
 ref: https://catalog.data.gov/dataset/cdc-state-system-tobacco-legislation-smokefree-indoor-air-50be7
 ## Data resource
 www.cdc.gov/500cities
+Direct download of the data: https://data.cdc.gov/api/views/6vp6-wxuq/rows.csv?accessType=DOWNLOAD

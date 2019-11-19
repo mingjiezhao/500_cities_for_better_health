@@ -19,9 +19,9 @@ shinyApp(
      
         
           selectInput("measure_type", "Measure Category", 
-                      choices=unique(dfl$Measure)),
+                      choices=unique(q3_data$Measure)),
           selectInput("State", "State", 
-                      choices=unique(dfl$StateDesc)),
+                      choices=unique(q3_data$StateDesc)),
           hr()
         
     ),
